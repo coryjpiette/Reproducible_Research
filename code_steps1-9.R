@@ -1,129 +1,128 @@
-## Load
-
-setwd("C:\\Users\\Windows\\Documents\\JHU_Data_Science\\Course_5\\Project_1\\")
-url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
-destfile <- "step_data.zip"
-download.file(url, destfile)
-unzip(destfile)
-activity <- read.csv("activity.csv", sep = ",")
-
-## Structuring data
-
-names(activity)
-str(activity)
-head(activity[which(!is.na(activity$steps)), ])
-
-## Mean - total # of steps
-library(reshape2)
-activity_melt <- melt(activity[which(!is.na(activity$steps)), ], id.vars = c("date", "interval"))
-head(activity_melt)
-steps_sum <- dcast(activity_melt, date ~ variable, sum)
-head(steps_sum)
-
-summary(steps_sum$steps) # Summary of data
-
-
-
-## Histogram - total number of steps and mean/median of data
-
-hist(steps_sum$steps, main = "Histogram of total steps taken per day", 
-     xlab = "Total steps per day", ylab = "Number of days", 
-     breaks = 10, col = "steel blue")
-abline(v = mean(steps_sum$steps), lty = 1, lwd = 2, col = "red")
-abline(v = median(steps_sum$steps), lty = 2, lwd = 2, col = "black")
-legend(x = "topright", c("Mean", "Median"), col = c("red", "black"), 
-       lty = c(1, 2), lwd = c(2, 2))
-
-## Average daily activity pattern
-
-stepsmeaninterval <- dcast(activity_melt, interval ~ variable, 
-                           mean, na.rm = TRUE)
-head(stepsmeaninterval)
-plot(stepsmeaninterval$interval, stepsmeaninterval$steps, ty = "l",
-     xlab = "time interval", ylab = "Average steps", 
-     main = "Average steps taken over all days vs \n time interval")
-maxsteps_interval <- 
-        stepsmeaninterval$interval[which.max(stepsmeaninterval$steps)]
-maxsteps_interval
-
-
-
-## Imputing missing values
-
-activity2 <- split(activity, activity$interval)
-activity2 <- lapply(activity2, function(x) {
-        x$steps[which(is.na(x$steps))] <- mean(x$steps, na.rm = TRUE)
-        return(x)
-})
-activity2 <- do.call("rbind", activity2)
-row.names(activity2) <- NULL
-
-activity2 <- split(activity2, activity2$date)
-df <- lapply(activity2, function(x) {
-        x$steps[which(is.na(x$steps))] <- mean(x$steps, na.rm = TRUE)
-        return(x)
-})
-activity2 <- do.call("rbind", activity2)
-row.names(activity2) <- NULL
-head(activity2)
-
-library(reshape2)
-activity_melt2 <- melt(activity2, id.vars = c("date", "interval"))
-steps_sum <- dcast(activity_melt2, date ~ variable, sum, na.rm = TRUE)
-head(steps_sum)
-
-## Histogram - total # of steps taken with imputed missing values
-
-hist(steps_sum$steps, main = "Histogram of total steps taken per day", 
-     xlab = "Total steps per day", ylab = "Number of days", 
-     breaks = 10, col = "steel blue")
-abline(v = mean(steps_sum$steps), lty = 1, lwd = 2, col = "red")
-abline(v = median(steps_sum$steps), lty = 2, lwd = 2, col = "black")
-legend(x = "topright", c("Mean", "Median"), col = c("red", "black"), 
-       lty = c(2, 1), lwd = c(2, 2))
-
-## Number of rows with NA values
-
-sum(is.na(activity$steps))
-sum(is.na(activity$steps))*100/nrow(activity) # Percentage of rows
-
-
-
-## Weekdays vs Weekends patterns
-
-library(lubridate)
-weekends <- which(weekdays(as.Date(activity2$date)) == "Saturday" |
-                          weekdays(as.Date(activity2$date)) == "Sunday")
-weekdays <- which(weekdays(as.Date(activity2$date)) != "Saturday" &
-                          weekdays(as.Date(activity2$date)) != "Sunday")
-temp <- c(rep("a", length(activity2)))
-temp[weekends] <- "weekend"
-temp[weekdays] <- "weekday"
-length(temp)
-activity2 <- cbind(activity2, temp)
-head(activity2)
-names(activity2)[4] <- "day"
-
-activity2split <- split(activity2, activity2$day)
-stepsmean_interval <- lapply(activity2split, function(x) {
-        temp <- aggregate(x$steps, list(x$interval), mean)
-        names(temp) <- c("interval", "steps")
-        return(temp)
-})
-
-## Unsplit stepsmean_interval
-
-stepsmean_interval <- do.call("rbind", stepsmean_interval)
-weekdays <- grep("weekday" ,row.names(stepsmean_interval))
-weekends <- grep("weekend" ,row.names(stepsmean_interval))
-temp <- c(rep("a", length(stepsmean_interval$steps)))
-temp[weekdays] <- "weekdays"
-temp[weekends] <- "weekends"
-names(temp) <- "day"
-stepsmean_interval <- cbind(stepsmean_interval, temp)
-row.names(stepsmean_interval) <- NULL
-
-head(stepsmean_interval)
+# Loading the Data
 
 library(ggplot2)
-ggplot(stepsmean_interval, aes(interval, steps)) + geom_line() + facet_grid(temp ~ .) 
+\library(plyr)
+activity <- read.csv("activity.csv")
+
+# Processing the Data
+
+activity$day <- weekdays(as.Date(activity$date))
+activity$DateTime<- as.POSIXct(activity$date, format="%Y-%m-%d")
+
+##pulling data without nas
+clean <- activity[!is.na(activity$steps),]
+
+What is mean total number of steps taken per day?
+Calculate the total number of steps taken per day
+
+## summarizing total steps per date
+sumTable <- aggregate(activity$steps ~ activity$date, FUN=sum, )
+colnames(sumTable)<- c("Date", "Steps")
+
+## Creating the historgram of total steps per day
+hist(sumTable$Steps, breaks=5, xlab="Steps", main = "Total Steps per Day")
+
+## Mean of Steps
+as.integer(mean(sumTable$Steps))
+## [1] 10766
+
+## Median of Steps
+as.integer(median(sumTable$Steps))
+## [1] 10765
+
+## mean: 10766 steps.
+## median: 10765 steps.
+
+
+library(plyr)
+library(ggplot2)
+
+## pulling data without nas
+clean <- activity[!is.na(activity$steps),]
+
+## create average number of steps per interval
+intervalTable <- ddply(clean, .(interval), summarize, Avg = mean(steps))
+
+## Create line plot of average number of steps per interval
+p <- ggplot(intervalTable, aes(x=interval, y=Avg), xlab = "Interval", ylab="Average Number of Steps")
+p + geom_line()+xlab("Interval")+ylab("Average Number of Steps")+ggtitle("Average Number of Steps per Interval")
+
+
+
+
+## Maximum steps by interval
+
+maxSteps <- max(intervalTable$Avg)
+
+intervalTable[intervalTable$Avg==maxSteps,1]
+## [1] 835
+
+## Max 5-minute interval: 835
+
+
+## Number of NAs in original data set
+nrow(activity[is.na(activity$steps),])
+## [1] 2304
+## The total number of rows with steps = ‘NA’: 2304.
+
+## Create the average number of steps per weekday and interval
+
+avgTable <- ddply(clean, .(interval, day), summarize, Avg = mean(steps))
+
+## Create dataset with all NAs for substitution
+
+nadata<- activity[is.na(activity$steps),]
+## Merge NA data with average weekday interval for substitution
+
+newdata<-merge(nadata, avgTable, by=c("interval", "day"))
+Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+## Reorder the new substituded data in the same format as clean data set
+newdata2<- newdata[,c(6,4,1,2,5)]
+colnames(newdata2)<- c("steps", "date", "interval", "day", "DateTime")
+
+## Merge the NA averages and non NA data together
+
+mergeData <- rbind(clean, newdata2)
+Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+##Create sum of steps per date to compare with step 1
+
+sumTable2 <- aggregate(mergeData$steps ~ mergeData$date, FUN=sum, )
+colnames(sumTable2)<- c("Date", "Steps")
+
+## Mean of Steps with NA data
+
+as.integer(mean(sumTable2$Steps))
+## [1] 10821
+
+## Median of Steps with NA data
+as.integer(median(sumTable2$Steps))
+## [1] 11015
+## Creating the histogram of total steps per day, categorized by data set to show impact
+
+hist(sumTable2$Steps, breaks=5, xlab="Steps", main = "Total Steps per Day with NAs Fixed", col="Black")
+hist(sumTable$Steps, breaks=5, xlab="Steps", main = "Total Steps per Day with NAs Fixed", col="Grey", add=T)
+legend("topright", c("Imputed Data", "Non-NA Data"), fill=c("black", "grey") )
+
+
+## The new mean of the imputed data: 10821 steps
+
+## The new median of the imputed data: 11015 steps 
+
+## Create new category based on the days of the week
+
+mergeData$DayCategory <- ifelse(mergeData$day %in% c("Saturday", "Sunday"), "Weekend", "Weekday")
+
+library(lattice) 
+## Summarize data by interval and type of day
+
+intervalTable2 <- ddply(mergeData, .(interval, DayCategory), summarize, Avg = mean(steps))
+
+##Plot data
+
+xyplot(Avg~interval|DayCategory, data=intervalTable2, type="l",  layout = c(1,2),
+       main="Average Steps per Interval Based on Type of Day", 
+       ylab="Average Number of Steps", xlab="Interval")
+
+## Trends are different
